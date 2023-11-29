@@ -1,0 +1,7 @@
+-r base.txt
+autoflake==2.0.0
+flake8==6.0.0
+async-asgi-testclient==1.4.11
+
+sqlalchemy2-stubs
+types-python-jose
