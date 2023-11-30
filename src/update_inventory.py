@@ -1,7 +1,9 @@
 import os
 import sys
+import time
 from dotenv import load_dotenv
 from celery import Celery
+from celery.result import AsyncResult
 from sqlalchemy import insert, select
 from sqlalchemy import create_engine, insert
 from sqlalchemy.orm import sessionmaker
@@ -57,7 +59,11 @@ def update_inventory(payload: dict, fn: str):
                     )
                     session.commit()
                     print("inserted first record into the token_record table successfully")
-                    # celery_app.send_task("make_delivery", queue="q04", args=[payload, "make_delivery"])
+                   
+                    #returning result to the order service
+                    delivery_task = celery_app.send_task("make_delivery", queue="q04", args=[payload, "make_delivery"])
+                    print("delivery_task.id="+str(delivery_task.id))
+                    return waiting_delivery_result(delivery_task.id)
             else:
                 print("there is record in the token_record table")
                 #select the newest record
@@ -72,19 +78,28 @@ def update_inventory(payload: dict, fn: str):
                     print("quantity requested is possible")
                     print("updating record in the token_record table")
                     deduct_token(username, quantity, delivery, result.amount_left)
-                    # celery_app.send_task("make_delivery", queue="q04", args=[payload, "make_delivery"])
+                    
+                    delivery_task = celery_app.send_task("make_delivery", queue="q04", args=[payload, "make_delivery"])
+                    #returning result to the order service
+                    print("delivery_task.id="+str(delivery_task.id))
+                    return waiting_delivery_result(delivery_task.id)
+                    
         except Exception as e:
             print(f"Error during database operation: {e}")
         finally:
             session.close()
     elif fn == "rollback_inventory":
         rollback_inventory(username, quantity, delivery)
+        print("rollback_inventory successfully")
+        print("inventory service sending task to rollback payment")
+        celery_app.send_task("rollback_payment", queue="q02", args=[payload, "rollback_payment"])
     else:
-        print("invalid function name in payment service kub")
+        print("invalid function name in invnetory service kub")
 
 @celery_app.task
 def deduct_token(username: str, quantity: int, delivery: bool,amt_available: int):
     print("deducting token in inventory")
+    print("amt_available="+str(amt_available)+" ,quantity="+str(quantity) + " ,amt_left="+str(int(amt_available-quantity)))
     session = Session()
     try:
         session.execute(
@@ -103,6 +118,18 @@ def deduct_token(username: str, quantity: int, delivery: bool,amt_available: int
         session.close()
 
 @celery_app.task
+def waiting_delivery_result(delivery_task_id):
+    time.sleep(0.1)
+    delivery_task_result = AsyncResult(delivery_task_id)
+    if delivery_task_result.ready():
+        result_value = delivery_task_result.result
+        print(f"Task result: {result_value}")
+        return result_value
+    else:
+        print("delivery task is still running...")
+        return "delivery task is still running..."
+
+@celery_app.task
 def rollback_inventory(username: str, quantity: int, delivery: bool):
     print("rollback_inventory")
     session = Session()
@@ -110,15 +137,19 @@ def rollback_inventory(username: str, quantity: int, delivery: bool):
         #select the newest record
         query = select([token_record]).order_by(token_record.c.uuid.desc()).limit(1)
         result = session.execute(query).fetchone()  # Fetch the result row
+        current_amt_available: int = result.amount_left
+        print("result_amt_left in rollback="+str(current_amt_available))
+        new_amt_available: int = current_amt_available + quantity
+        print("new_amt_available in rollback="+str(new_amt_available))
         session.execute(
             insert(token_record).values(
-                amount_available=result.amount_left,
+                amount_available=current_amt_available,
                 amount_taken=quantity,
-                amount_left=result.amount_left+quantity,
+                amount_left=new_amt_available,
                 username=username,
             )
         )
-        print("rollback_inventory successfully")
+        session.commit()
     except Exception as e:
         print(f"Error during database operation: {e}")
     finally:
