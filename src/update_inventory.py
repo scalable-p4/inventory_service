@@ -46,6 +46,7 @@ def update_inventory(payload: dict, fn: str):
                 if quantity > initial_amt:
                     print("quantity requested is more than the available token")
                     celery_app.send_task("create_payment", queue="q02", args=[payload, "rollback_payment"])
+                    return "FAIL_INVENTORY (not enough token available)"
                 else:
                     print("quantity requested is possible")
                     print("inserting record into the token_record table")
@@ -74,6 +75,7 @@ def update_inventory(payload: dict, fn: str):
                     print("quantity requested is more than the available token")
                     print("inventory deduct fail .... rollbacking payment")
                     celery_app.send_task("create_payment", queue="q02", args=[payload, "rollback_payment"])
+                    return "FAIL_INVENTORY (not enough token available)"
                 else:
                     print("quantity requested is possible")
                     print("updating record in the token_record table")
