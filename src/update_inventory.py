@@ -197,7 +197,7 @@ def deduct_token(username: str, quantity: int, delivery: bool,amt_available: int
             inventory_commit_counter.add(1)
             print("successfully deducted token and updated record in the token_record table")
         except Exception as e:
-            print(f"Error during database operation: {e}")
+            logger.error("Error during database operation", exc_info=True)
         finally:
             session.close()
 
