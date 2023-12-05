@@ -25,7 +25,7 @@ from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 import logging
-service_name = "order_worker"
+service_name = "inventory_worker"
 
 # Initialize TracerProvider for OTLP
 resource = Resource(attributes={SERVICE_NAME: service_name})
