@@ -21,6 +21,7 @@ from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExp
 from opentelemetry.instrumentation.celery import CeleryInstrumentor
 
 # Logging imports
+from opentelemetry._logs import set_logger_provider
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
@@ -41,9 +42,10 @@ metrics.set_meter_provider(metric_provider)
 
 # Initialize LoggerProvider for OTLP
 logger_provider = LoggerProvider(resource=resource)
+set_logger_provider(logger_provider)
 otlp_log_exporter = OTLPLogExporter(endpoint="otel-collector:4317", insecure=True)
 logger_provider.add_log_record_processor(BatchLogRecordProcessor(otlp_log_exporter))
-handler = LoggingHandler(level=logging.NOTSET, logger_provider=logger_provider)
+handler = LoggingHandler(level=logging.DEBUG, logger_provider=logger_provider)
 
 # Attach OTLP handler to root logger
 logging.getLogger().addHandler(handler)
@@ -51,6 +53,8 @@ logging.getLogger().addHandler(handler)
 tracer = trace.get_tracer(__name__)
 meter = metrics.get_meter(__name__)
 logger = logging.getLogger(__name__)
+logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
 
 BROKER_URL = os.getenv("CELERY_BROKER_URL")
 RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND")
