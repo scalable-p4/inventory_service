@@ -22,5 +22,3 @@ RUN useradd -m -d /src -s /bin/bash app \
 
 WORKDIR /src
 USER app
-
-CMD ["./scripts/start-dev.sh"]
